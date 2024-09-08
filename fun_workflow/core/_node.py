@@ -7,13 +7,12 @@ import copy
 import logging
 from functools import partial
 from inspect import _empty, signature
-from typing import Callable, Dict, List, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 from pydantic import BaseModel
 
 __all__ = (
     "BaseNode",
-    "BaseSequenceNode",
     "ConditionNode",
     "EndNode",
     "Node",
@@ -28,10 +27,10 @@ __all__ = (
     "start_node",
 )
 
-__logger_level = "INFO"
+__logger_level = "DEBUG"
 # __logger_format = "%(levelname)s %(asctime)s %(pathname)s.%(lineno)d %(message)s"
-# __logger_format = "%(levelname)s %(pathname)s.%(lineno)d %(message)s"
-__logger_format = "%(levelname)s %(asctime)s %(message)s"
+__logger_format = "%(levelname)s %(pathname)s.%(lineno)d %(message)s"
+# __logger_format = "%(levelname)s %(asctime)s %(message)s"
 DATEFMT_STD = "%Y/%m/%d %I:%M:%S"
 logger = logging.getLogger(__name__)
 logger.setLevel(__logger_level)
@@ -55,12 +54,13 @@ class BaseNode:
         func: Callable = None,
         name: str = None,
         description: str = None,
+        inputs: Union[Dict, BaseModel] = {},
     ):
         self._func = func
         self._node_name = name
         self._description = description
         self.finish: bool = False
-        self._inputs = dict()
+        self._inputs = inputs
         self.outputs = None
 
     def require_parameters(self):
@@ -82,7 +82,7 @@ class BaseNode:
         else:  # pragma: no cover
             raise TypeError("BaseNode.inputs need be dict or pydantic.BaseModel")
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
     def __repr__(self) -> str:
@@ -94,13 +94,15 @@ class BaseNode:
             + f"Finish: {self.finish}>"
         )
 
-    def __rshift__(self, node: Union[List[NodeType], NodeType]):
-        outputs = self.run()
-        if isinstance(node, list):
-            for _internal_node in node:
-                _internal_node.inputs = outputs
+    def __rshift__(self, node: NodeType):
+        self.outputs = self.run()
+        if isinstance(node, (list, tuple)):
+            # TODO: Need support
+            # for _internal_node in node:
+            #     _internal_node.inputs = self.outputs
+            raise NotImplementedError
         else:
-            node.inputs = outputs
+            node.inputs = self.outputs
         if isinstance(node, EndNode):
             node.run()
         return node
@@ -137,10 +139,6 @@ class BaseNode:
         logger.debug(f"output: {self.output}")
         logger.debug("-" * 25)
         return self.output
-
-
-class BaseSequenceNode:
-    pass
 
 
 class StartNode(BaseNode):
@@ -185,10 +183,12 @@ def __node_decorator(
 
 
 def get_node(node_name: str) -> NodeType:
-    if node_name in _mapping and isinstance(node_name, str):
+    if isinstance(node_name, str) and node_name in _mapping:
         return copy.deepcopy(_mapping.get(node_name))
+    elif isinstance(node_name, NodeType):
+        return node_name
     else:
-        ValueError(f"Node `{node_name}` not register")
+        raise ValueError(f"Node `{node_name}` not register")
 
 
 def get_nodes(*args: List[str]) -> Tuple[NodeType]:
@@ -207,7 +207,7 @@ def check_node_can_link(
     next_input_type = node2.require_parameters()
 
     if not issubclass(outputs_type, BaseModel):
-        if raise_exception:
+        if raise_exception:  # pragma: no cover
             raise ValueError("need output hint and pydantic.BaseModel")
         return False
 
@@ -216,7 +216,7 @@ def check_node_can_link(
     # Check parameters
     for parameter_name, parameter in next_input_type.items():
         if parameter.default == _empty and parameter_name not in outputs_type.model_fields:
-            if raise_exception:
+            if raise_exception:  # pragma: no cover
                 raise ValueError(
                     f"Node '{node1._node_name}' outputs or Node '{node2._node_name}' inputs missing parameter '{parameter_name}'"
                 )
@@ -231,7 +231,6 @@ condition_node = partial(__node_decorator, node_class=ConditionNode)
 node = partial(__node_decorator, node_class=Node)
 NodeType = Union[
     BaseNode,
-    BaseSequenceNode,
     StartNode,
     Node,
     ConditionNode,

@@ -14,7 +14,7 @@ from ._node import BaseNode, StartNode, _mapping, check_node_can_link, get_node,
 __all__ = ("Flow",)
 
 
-__logger_level = "DEBUG"
+__logger_level = "INFO"
 # __logger_format = "%(levelname)s %(asctime)s %(pathname)s.%(lineno)d %(message)s"
 __logger_format = "%(levelname)s %(pathname)s.%(lineno)d %(message)s"
 # __logger_format = "%(levelname)s %(asctime)s %(message)s"
@@ -49,7 +49,7 @@ class Flow:
 
         logger.debug(pprint.pformat(self._nodes))
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
     def __repr__(self) -> str:

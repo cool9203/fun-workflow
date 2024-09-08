@@ -2,7 +2,6 @@
 # write reference: https://docs.python.org/zh-tw/3/library/unittest.html
 
 import unittest
-from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -30,14 +29,31 @@ class TestCore(unittest.TestCase):
         def output(query: str) -> OutputOutput:
             return OutputOutput(result="result", query=query)
 
+        @fw.end_node()
+        def error_output(query: str, a: str) -> OutputOutput:
+            return OutputOutput(result="result", query=query)
+
         print("=" * 25)
 
         flow = fw.Flow("query", ["rewrite", "rewrite"], "output", strict=True)
         flow.start()
 
         (_query, _rewrite, _output) = fw.get_nodes("query", "rewrite", "output")
+        fw.get_node(_query)
         _query >> _rewrite >> _output
-        _query >> [_rewrite, _rewrite] >> _output
+
+        with self.assertRaises(NotImplementedError):
+            _query >> [_rewrite, _rewrite] >> _output
+
+        with self.assertRaises(ValueError):
+            _error_output = fw.get_node("error_output")
+            _query >> _rewrite >> _error_output
+
+        with self.assertRaises(ValueError):
+            _query.inputs = {"query": "test query"}
+
+        with self.assertRaises(ValueError):
+            fw.get_node("unknown_node")
 
     def test_dict_type(self):
         @fw.start_node()
@@ -52,14 +68,31 @@ class TestCore(unittest.TestCase):
         def output(query: str):
             return {"result": "result", "query": query}
 
+        @fw.end_node()
+        def error_output(query: str, a: str):
+            return {"result": "result", "query": query}
+
         print("=" * 25)
 
         flow = fw.Flow("query", ["rewrite", "rewrite"], "output", strict=False)
         flow.start()
 
         (_query, _rewrite, _output) = fw.get_nodes("query", "rewrite", "output")
+        fw.get_node(_query)
         _query >> _rewrite >> _output
-        _query >> [_rewrite, _rewrite] >> _output
+
+        with self.assertRaises(NotImplementedError):
+            _query >> [_rewrite, _rewrite] >> _output
+
+        with self.assertRaises(ValueError):
+            _error_output = fw.get_node("error_output")
+            _query >> _rewrite >> _error_output
+
+        with self.assertRaises(ValueError):
+            _query.inputs = {"query": "test query"}
+
+        with self.assertRaises(ValueError):
+            fw.get_node("unknown_node")
 
 
 if __name__ == "__main__":

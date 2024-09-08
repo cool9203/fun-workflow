@@ -6,6 +6,7 @@ from pathlib import Path
 from . import _config
 
 env_file_path = "./.env.toml"
+config = dict()
 if Path(env_file_path).is_file():
     print(f"Load '{env_file_path}' success")
     config = _config.load_config(env_file_path)
