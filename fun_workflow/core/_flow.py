@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from .._types import FlowLifeState, NodeType
 from ._node import BaseNode, StartNode, _mapping, check_node_can_link, get_node, get_nodes
+from .util import get_function_used_params
 
 __all__ = ("Flow",)
 
@@ -35,6 +36,7 @@ class Flow:
         *args,
         strict: bool = True,
         description: str = None,
+        **kwds,
     ):
         self._strict = strict
         self._description = description
@@ -43,6 +45,7 @@ class Flow:
         self._signal = False
         self._inputs = list()
         self._outputs = list()
+        self._settings = kwds
 
         for nodes in args:
             self.next(nodes, check=strict)
@@ -70,23 +73,27 @@ class Flow:
                     self.state = FlowLifeState.Stop
                     break
 
-                self._inputs.append(outputs)
-
                 if isinstance(node, list):
+                    _internal_inputs = list()
                     _internal_outputs = list()
                     for _internal_node in node:
-                        _internal_node.inputs = outputs
+                        _inputs = get_function_used_params(_internal_node._func, **outputs, **self._settings)
+                        _internal_node.inputs = _inputs
                         _outputs = _internal_node.run()
+                        _internal_inputs.append(_inputs)
                         _internal_outputs.append(_outputs)
                         logger.debug(f"_outputs: {_outputs}")
+                    self._inputs.append(_internal_inputs)
                     self._outputs.append(_internal_outputs)
 
                 else:
-                    node.inputs = outputs
+                    _inputs = get_function_used_params(node._func, **outputs, **self._settings)
+                    node.inputs = _inputs
                     _outputs = node.run()
+                    self._inputs.append(_inputs)
                     self._outputs.append(_outputs)
                     logger.debug(f"_outputs: {_outputs}")
-                outputs = _outputs
+                outputs = _outputs  # TODO: only use last output, maybe is wrong?
                 logger.debug("-" * 25)
 
             self.state = FlowLifeState.Finish
